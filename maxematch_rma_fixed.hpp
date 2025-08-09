@@ -2,8 +2,8 @@
 /* Maximal edge matching using MPI RMA */
 
 #pragma once
-#ifndef MAXEMATCHRMA_HPP
-#define MAXEMATCHRMA_HPP
+#ifndef MAXEMATCHRMAFIX_HPP
+#define MAXEMATCHRMAFIX_HPP
 
 #include "graph.hpp"
 
@@ -18,10 +18,10 @@
 
 // TODO FIXME change comm_world to comm_
 
-class MaxEdgeMatchRMA
+class MaxEdgeMatchRMAFix
 {
     public:
-        MaxEdgeMatchRMA(Graph* g): 
+        MaxEdgeMatchRMAFix(Graph* g): 
             g_(g), D_(0), M_(0), mate_(nullptr),
             qbuf_(nullptr), ghost_count_(nullptr),
             nghosts_(0), nghosts_indices_(0), rdispls_(0),
@@ -114,7 +114,7 @@ class MaxEdgeMatchRMA
             MPI_Win_free(&win_); 
         }
 
-        ~MaxEdgeMatchRMA() {}
+        ~MaxEdgeMatchRMAFix() {}
 
         void clear()
         {

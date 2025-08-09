@@ -14,6 +14,8 @@
 
 #if defined(USE_MPI_RMA)
 #include "maxematch_rma.hpp"
+#elif defined(USE_MPI_RMAFIX)
+#include "maxematch_rma_fixed.hpp"
 #elif defined(USE_MPI_NCL)
 #include "maxematch_ncl.hpp"
 #elif defined(USE_MPI_NCN)
@@ -119,9 +121,18 @@ int main(int argc, char *argv[])
     // start graph matching
 
 #if defined(USE_MPI_RMA)
+    
     if (me == 0)
-        std::cout << "MPI-3 RMA: ";
+        fprintf(stderr, "MPI-RMA[shubh]\n");
+        //std::cout << "MPI-3 RMA: ";
     MaxEdgeMatchRMA mt(g); 
+    mt.create_mpi_win(); // create MPI windows
+#if defined(USE_MPI_RMAFIX)
+    
+    if (me == 0)
+        fprintf(stderr, "MPI-RMA-FIX[shubh]\n");
+        //std::cout << "MPI-3 RMA: ";
+    MaxEdgeMatchRMAFix mt(g); 
     mt.create_mpi_win(); // create MPI windows
 #elif defined(USE_MPI_NCL)
     if (me == 0)
@@ -170,6 +181,8 @@ int main(int argc, char *argv[])
     
     // invoke matching
     t0 = MPI_Wtime();
+    if(me == 0)
+        fprintf(stderr, "Invoking matching[shubh]\n");
     std::vector<EdgeTuple> const& M = mt();
     
     MPI_Barrier(MPI_COMM_WORLD);

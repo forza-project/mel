@@ -28,9 +28,9 @@ class MaxEdgeMatch
 
         void print_M() const
         {
-            std::cout << "Matched vertices: " << std::endl;
-            for (GraphElem i = 0; i < M_.size(); i++)
-                std::cout << M_[i].ij_[0] << " ---- " << M_[i].ij_[1] << std::endl;
+            std::cout << "Matched edges: " << M_.size() << std::endl;
+            // for (GraphElem i = 0; i < M_.size(); i++)
+            //     std::cout << M_[i].ij_[0] << " ---- " << M_[i].ij_[1] << std::endl;
         }
          
         // if mate[mate[v]] == v then

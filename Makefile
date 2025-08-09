@@ -1,8 +1,10 @@
 CXX = mpicxx
 # use -xmic-avx512 instead of -xHost for Intel Xeon Phi platforms
-OPTFLAGS = -O3 -DCHECK_RESULTS  #-DPRINT_RESULTS #-DDEBUG_PRINTF
+OPTFLAGS = -O3 -DCHECK_RESULTS -DUSE_MPI_RMA -DPRINT_RESULTS -DDEBUG_PRINTF
+#OPTFLAGS = -O3 -DCHECK_RESULTS -DPRINT_RESULTS -DDEBUG_PRINTF
 
 # Options for choosing the MPI variants
+#-DUSE_MPI_RMAFIX
 #-DUSE_MPI_NPP
 #-DUSE_MPI_NRM
 #-DUSE_MPI_P2P
@@ -33,7 +35,7 @@ all: $(TARGET)
 	$(CXX) $(CXXFLAGS) -c -o $@ $^
 
 $(TARGET):  $(OBJ)
-	$(CXX) $^ $(OPTFLAGS) -o $@ $(LDFLAGS) $(LIBS)
+	$(CXX) $^ $(CXXFLAGS) -o $@ $(LDFLAGS) $(LIBS)
 
 .PHONY: clean
 

@@ -291,9 +291,9 @@ class MaxEdgeMatchRMA
 
             if (rank_ == 0)
             {
-                std::cout << "Matched edges: " << m_global_size/4 <<  std::endl;
+                std::cout << "Matched edges: " << m_global_size/2 <<  std::endl;
             }  
-            // // print mates
+            // print mates
             // if (rank_ == 0)
             // {
             //     std::cout << "Matched vertices: " << std::endl;

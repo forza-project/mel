@@ -435,7 +435,16 @@ class BinaryEdgeList
             {
                 //g->edge_list_[i].weight_ = std::fabs(g->edge_list_[i].weight_);
                 g->edge_active_.emplace_back(g->edge_list_[i]);
+                //fprintf(stderr, "%ld, %ld, %f\n", i,  g->edge_list_[i].tail_, g->edge_list_[i].weight_);
             }
+
+            // GraphElem global_start = (M_ * me) / nprocs;
+            // for (GraphElem u = 0; u < M_local_; ++u) {
+            //     for (GraphElem j = g->edge_indices_[u]; j < g->edge_indices_[u+1]; ++j) {
+            //         const Edge& e = g->edge_list_[j];
+            //         fprintf(stderr, "%ld %ld %.2f\n", global_start + u, e.tail_, e.weight_);
+            //     }
+            // }
             
             /*
             for (GraphElem i = 0; i < g->get_lnv(); i++)
@@ -1230,7 +1239,6 @@ class GenerateRGG
                     
                     edge.tail_ = edgeList[ePos].ij_[1];
                     edge.weight_ = edgeList[ePos].w_;
-
                     ePos++;
                 }
             }
