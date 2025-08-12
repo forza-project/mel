@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
         //std::cout << "MPI-3 RMA: ";
     MaxEdgeMatchRMA mt(g); 
     mt.create_mpi_win(); // create MPI windows
-#if defined(USE_MPI_RMAFIX)
+#elif defined(USE_MPI_RMAFIX)
     
     if (me == 0)
         fprintf(stderr, "MPI-RMA-FIX[shubh]\n");
