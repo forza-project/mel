@@ -198,10 +198,8 @@ int main(int argc, char *argv[])
 
 #if defined(CHECK_RESULTS)    
     mt.check_results();
-#endif
-#if defined(PRINT_RESULTS)    
+#endif    
     mt.print_M();
-#endif
  
     MPI_Barrier(MPI_COMM_WORLD);
     

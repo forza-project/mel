@@ -304,12 +304,12 @@ class MaxEdgeMatchRMAFix
                 std::cout << "Matched edges: " << m_global_size/4 <<  std::endl;
             }  
             // // print mates
-            if (rank_ == 0)
-            {
-                std::cout << "Matched vertices: " << std::endl;
-                for (int i = 0; i < m_global_size; i+=2)
-                    std::cout << M_global[i] << " ---- " << M_global[i+1] << std::endl;
-            }
+            // if (rank_ == 0)
+            // {
+            //     std::cout << "Matched vertices: " << std::endl;
+            //     for (int i = 0; i < m_global_size; i+=2)
+            //         std::cout << M_global[i] << " ---- " << M_global[i+1] << std::endl;
+            // }
             
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -422,7 +422,9 @@ class MaxEdgeMatchRMAFix
 
                                 status[g_->global_to_local(wbuf_[index+i])] = STATUS_FINISHED;
                                 matched = true;
-                                fprintf(stderr, "[Match]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                                #ifdef DEBUG_PRINTF
+                                    fprintf(stderr, "[Match]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                                #endif
                             }
                             else {
                                 GraphElem e0, e1, w;
@@ -452,7 +454,9 @@ class MaxEdgeMatchRMAFix
                                     else {
                                         Put(MATE_REJECT, source, data);
                                     }
-                                    fprintf(stderr, "[Store-Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                                    #ifdef DEBUG_PRINTF
+                                        fprintf(stderr, "[Store-Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                                    #endif
                                     storage[pos+1] = w; 
                                     storage[pos] = wbuf_[index+i+1];
                                     matched = true;
@@ -464,7 +468,9 @@ class MaxEdgeMatchRMAFix
                             deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
                             GraphElem data[2] = {wbuf_[index+i+1], wbuf_[index+i]};
                             const int source = g_->get_owner(data[0]);
-                            fprintf(stderr, "[Reject-Matched v]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                            #ifdef DEBUG_PRINTF
+                                fprintf(stderr, "[Reject-Matched v]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                            #endif
                             Put(MATE_REJECT, source, data);
                         }                
                     } 
@@ -473,7 +479,9 @@ class MaxEdgeMatchRMAFix
                         deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
                         if (mate_[g_->global_to_local(wbuf_[index+i])] == wbuf_[index+i+1]) {
                             status[g_->global_to_local(wbuf_[index+i])] = STATUS_INIT;
-                            fprintf(stderr, "[Process incoming Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                            #ifdef DEBUG_PRINTF
+                                fprintf(stderr, "[Process incoming Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                            #endif
                             find_mate(wbuf_[index+i]);
                         }
                     }
@@ -487,8 +495,9 @@ class MaxEdgeMatchRMAFix
                         status[g_->global_to_local(wbuf_[index+i])] = STATUS_FINISHED;
                         D_.push_back(wbuf_[index+i]);
                         D_.push_back(wbuf_[index+i+1]);
-                        fprintf(stderr, "[Accept]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
-
+                        #ifdef DEBUG_PRINTF
+                            fprintf(stderr, "[Accept]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
+                        #endif
                     } 
                 }
                 
@@ -570,7 +579,10 @@ class MaxEdgeMatchRMAFix
         void find_mate(GraphElem x)
         {
             const GraphElem lx = g_->global_to_local(x);
-            fprintf(stderr, "status[%ld]: %ld\n", x, status[lx]);
+            
+            #ifdef DEBUG_PRINTF
+                fprintf(stderr, "status[%ld]: %ld\n", x, status[lx]);
+            #endif
 
             if(status[lx] == STATUS_WAITING || status[lx] == STATUS_FINISHED) {
                 return;
@@ -580,7 +592,9 @@ class MaxEdgeMatchRMAFix
 
             compute_mate(lx, x_max_edge);
             const GraphElem y = mate_[lx] = x_max_edge.tail_;
-            fprintf(stderr, "[]: %ld, %ld\n", x, y);
+            #ifdef DEBUG_PRINTF
+                fprintf(stderr, "[]: %ld, %ld\n", x, y);
+            #endif
 
             if (y != -1)
             {
@@ -593,14 +607,18 @@ class MaxEdgeMatchRMAFix
                         D_.push_back(x);
                         D_.push_back(y);
                         M_.emplace_back(x, y, x_max_edge.weight_);
-                        fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
+                        #ifdef DEBUG_PRINTF
+                            fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
+                        #endif
                         deactivate_edge(y, x);
                         deactivate_edge(x, y);
                         status[lx] = STATUS_FINISHED;
                         status[ly] = STATUS_FINISHED;
                     }
                     else if(mate_[ly] != -1) {
-                        fprintf(stderr, "[Ahh, store it]: %ld, %ld\n", x, y);
+                        #ifdef DEBUG_PRINTF
+                            fprintf(stderr, "[Ahh, store it]: %ld, %ld\n", x, y);
+                        #endif
                         if(storage[2*ly] == -1) {
                             storage[2*ly] = x;
                             storage[2*ly+1] =  x_max_edge.weight_;
@@ -623,7 +641,9 @@ class MaxEdgeMatchRMAFix
                                     GraphElem data[2] = {storage[2*ly], y};
                                     const int source = g_->get_owner(data[0]);
                                     deactivate_edge(y, storage[2*ly]);
-                                    fprintf(stderr, "[send-reject]: %ld, %ld\n",y,storage[2*ly]);
+                                    #ifdef DEBUG_PRINTF
+                                        fprintf(stderr, "[send-reject]: %ld, %ld\n",y,storage[2*ly]);
+                                    #endif
                                     Put(MATE_REJECT, source, data);
                                 }
                                 storage[2*ly] = x;
@@ -641,14 +661,18 @@ class MaxEdgeMatchRMAFix
                     if(storage[lx*2] == -1 || (storage[lx*2] != -1 && storage[lx*2] != y)) {
                         status[lx] = STATUS_WAITING;
                         GraphElem y_x[2] = {y, x};
-                        fprintf(stderr, "[Request]: %ld, %ld\n", x, y);
+                        #ifdef DEBUG_PRINTF
+                            fprintf(stderr, "[Request]: %ld, %ld\n", x, y);
+                        #endif
                         Put(MATE_REQUEST, y_owner, y_x); 
                     }
                     else {
                         deactivate_edge(x, y);
                         status[lx] = STATUS_FINISHED;
                         GraphElem y_x[2] = {y, x};
-                        fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
+                        #ifdef DEBUG_PRINTF
+                            fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
+                        #endif
                         D_.push_back(x);
                         D_.push_back(y);
                         M_.emplace_back(x, y, x_max_edge.weight_);
