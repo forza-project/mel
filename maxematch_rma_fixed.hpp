@@ -304,12 +304,12 @@ class MaxEdgeMatchRMAFix
                 std::cout << "Matched edges: " << m_global_size/4 <<  std::endl;
             }  
             // // print mates
-            // if (rank_ == 0)
-            // {
-            //     std::cout << "Matched vertices: " << std::endl;
-            //     for (int i = 0; i < m_global_size; i+=2)
-            //         std::cout << M_global[i] << " ---- " << M_global[i+1] << std::endl;
-            // }
+            if (rank_ == 0)
+            {
+                std::cout << "Matched vertices: " << std::endl;
+                for (int i = 0; i < m_global_size; i+=2)
+                    std::cout << M_global[i] << " ---- " << M_global[i+1] << std::endl;
+            }
             
             MPI_Barrier(MPI_COMM_WORLD);
 
@@ -412,9 +412,6 @@ class MaxEdgeMatchRMAFix
                         // check if y is already matched
                         if (!is_matched(wbuf_[index+i]))
                         { 
-                            // deactivate edge
-                            // deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
-
                             if (mate_[g_->global_to_local(wbuf_[index+i])] == wbuf_[index+i+1])
                             {
                                 M_.emplace_back(wbuf_[index+i], wbuf_[index+i+1], 0.0);
@@ -423,8 +420,9 @@ class MaxEdgeMatchRMAFix
                                 D_.push_back(wbuf_[index+i]);
                                 D_.push_back(wbuf_[index+i+1]);
 
-                                status[wbuf_[index+i]] = STATUS_FINISHED;
+                                status[g_->global_to_local(wbuf_[index+i])] = STATUS_FINISHED;
                                 matched = true;
+                                fprintf(stderr, "[Match]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
                             }
                             else {
                                 GraphElem e0, e1, w;
@@ -438,36 +436,44 @@ class MaxEdgeMatchRMAFix
                                     } 
                                 }
                                 GraphElem pos = 2*(g_->global_to_local(wbuf_[index+i]));
-                                if(storage[pos+1] < w && storage[pos] < wbuf_[index+i+1]) { 
+                                if(storage[pos] == -1) {
+                                    storage[pos+1] = w; 
+                                    storage[pos] = wbuf_[index+i+1];
+                                    matched = true;
+                                }
+                                else if(storage[pos+1] < w || (storage[pos+1] == w && storage[pos] < wbuf_[index+i+1])) { 
                                     deactivate_edge(wbuf_[index+i], storage[pos]);
                                     GraphElem data[2] = {storage[pos], wbuf_[index+i]}; // {g,l}
                                     const int source = g_->get_owner(data[0]);
-
-                                    Put(MATE_REJECT, source, data);
+                                    if(source == rank_) {
+                                        deactivate_edge(storage[pos], wbuf_[index+i]);
+                                        status[g_->global_to_local(storage[pos])] = STATUS_INIT;
+                                    }
+                                    else {
+                                        Put(MATE_REJECT, source, data);
+                                    }
+                                    fprintf(stderr, "[Store-Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
                                     storage[pos+1] = w; 
                                     storage[pos] = wbuf_[index+i+1];
+                                    matched = true;
                                 }
                             }
                         } 
-
-                        // put REJECT if matching not possible
                         if (!matched)
                         {
-                            // deactivate edge
                             deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
-
-                            GraphElem data[2] = {wbuf_[index+i+1], wbuf_[index+i]}; // {g,l}
+                            GraphElem data[2] = {wbuf_[index+i+1], wbuf_[index+i]};
                             const int source = g_->get_owner(data[0]);
-
+                            fprintf(stderr, "[Reject-Matched v]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
                             Put(MATE_REJECT, source, data);
                         }                
                     } 
                     else if (wbuf_[index+i+2] == MATE_REJECT)
                     {
                         deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
-                        // recalculate mate[x]
                         if (mate_[g_->global_to_local(wbuf_[index+i])] == wbuf_[index+i+1]) {
-                            status[wbuf_[index+i]] = STATUS_INIT;
+                            status[g_->global_to_local(wbuf_[index+i])] = STATUS_INIT;
+                            fprintf(stderr, "[Process incoming Reject]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
                             find_mate(wbuf_[index+i]);
                         }
                     }
@@ -478,9 +484,10 @@ class MaxEdgeMatchRMAFix
                     {
                         M_.emplace_back(wbuf_[index+i], wbuf_[index+i+1], 0.0);
                         deactivate_edge(wbuf_[index+i], wbuf_[index+i+1]);
-                        status[wbuf_[index+i]] = STATUS_FINISHED;
+                        status[g_->global_to_local(wbuf_[index+i])] = STATUS_FINISHED;
                         D_.push_back(wbuf_[index+i]);
                         D_.push_back(wbuf_[index+i+1]);
+                        fprintf(stderr, "[Accept]: %ld, %ld\n", wbuf_[index+i], wbuf_[index+i+1]);
 
                     } 
                 }
@@ -494,26 +501,18 @@ class MaxEdgeMatchRMAFix
         // maximal edge matching using MPI RMA
         void maxematch_rma()
         {
-            /* Part #1 -- initialize candidate mate */
-
             GraphElem lnv = g_->get_lnv();
             for (GraphElem i = 0; i < lnv; i++)
                 find_mate(g_->local_to_global(i));
-
-            /* Part 2 -- compute mate */
 
             while(1)
             { 
                 process_window();    
                 do_matching();
-
-                // exit criteria: check if all cross edges have been processed
-                GraphElem count = std::accumulate(ghost_count_, ghost_count_ + lnv, 0);
-                //std::cout << "count: " << count << std::endl;     
-                
+                GraphElem count = std::accumulate(ghost_count_, ghost_count_ + lnv, 0);   
                 MPI_Allreduce(MPI_IN_PLACE, &count, 1, MPI_GRAPH_TYPE, 
                         MPI_SUM, MPI_COMM_WORLD);
-
+                //std::cout << "count: " << count << std::endl;  
                 if (count == 0)
                     break; 
             }
@@ -571,6 +570,7 @@ class MaxEdgeMatchRMAFix
         void find_mate(GraphElem x)
         {
             const GraphElem lx = g_->global_to_local(x);
+            fprintf(stderr, "status[%ld]: %ld\n", x, status[lx]);
 
             if(status[lx] == STATUS_WAITING || status[lx] == STATUS_FINISHED) {
                 return;
@@ -580,11 +580,10 @@ class MaxEdgeMatchRMAFix
 
             compute_mate(lx, x_max_edge);
             const GraphElem y = mate_[lx] = x_max_edge.tail_;
+            fprintf(stderr, "[]: %ld, %ld\n", x, y);
 
-            // initiate matching request
             if (y != -1)
             {
-                // check if y can be matched
                 const int y_owner = g_->get_owner(y);
                 if (y_owner == rank_)
                 {
@@ -594,60 +593,99 @@ class MaxEdgeMatchRMAFix
                         D_.push_back(x);
                         D_.push_back(y);
                         M_.emplace_back(x, y, x_max_edge.weight_);
-
-                        // mark y<->x inactive, because its matched
+                        fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
                         deactivate_edge(y, x);
                         deactivate_edge(x, y);
                         status[lx] = STATUS_FINISHED;
                         status[ly] = STATUS_FINISHED;
                     }
+                    else if(mate_[ly] != -1) {
+                        fprintf(stderr, "[Ahh, store it]: %ld, %ld\n", x, y);
+                        if(storage[2*ly] == -1) {
+                            storage[2*ly] = x;
+                            storage[2*ly+1] =  x_max_edge.weight_;
+                            status[lx] = STATUS_WAITING;
+                        }
+                        else {
+                            if((storage[2*ly+1] < x_max_edge.weight_) || 
+                                (storage[2*ly+1] == x_max_edge.weight_ && storage[2*ly] > x)) {
+                                
+                                status[lx] = STATUS_WAITING;
+                                storage[2*ly+1] = x_max_edge.weight_;
+                                // put a reject to the earlier one
+                                GraphElem prev_owner = g_->get_owner(storage[2*ly]);
+                                if(prev_owner == rank_) {
+                                    deactivate_edge(y, storage[2*ly]);
+                                    deactivate_edge(storage[2*ly], y);
+                                    status[g_->global_to_local(storage[2*ly])] = STATUS_INIT;
+                                }
+                                else {
+                                    GraphElem data[2] = {storage[2*ly], y};
+                                    const int source = g_->get_owner(data[0]);
+                                    deactivate_edge(y, storage[2*ly]);
+                                    fprintf(stderr, "[send-reject]: %ld, %ld\n",y,storage[2*ly]);
+                                    Put(MATE_REJECT, source, data);
+                                }
+                                storage[2*ly] = x;
+                            }
+                            else {
+                                deactivate_edge(y, x);
+                                deactivate_edge(x, y);
+                                status[lx] = STATUS_INIT;
+                            }
+                        }
+                    }
                 }
-                else // ghost, initate REQUEST
+                else
                 {
-                    //deactivate_edge(x, y);
-                    if(storage[lx*2] != -1 && storage[lx*2] != y) {
+                    if(storage[lx*2] == -1 || (storage[lx*2] != -1 && storage[lx*2] != y)) {
                         status[lx] = STATUS_WAITING;
                         GraphElem y_x[2] = {y, x};
+                        fprintf(stderr, "[Request]: %ld, %ld\n", x, y);
                         Put(MATE_REQUEST, y_owner, y_x); 
                     }
                     else {
                         deactivate_edge(x, y);
                         status[lx] = STATUS_FINISHED;
                         GraphElem y_x[2] = {y, x};
+                        fprintf(stderr, "[Mate accept]: %ld, %ld\n", x, y);
+                        D_.push_back(x);
+                        D_.push_back(y);
+                        M_.emplace_back(x, y, x_max_edge.weight_);
                         Put(MATE_ACCEPT, y_owner, y_x); 
                     } 
                 }
             }
-            else // invalidate all neigboring vertices 
-            {
-                status[lx] = STATUS_FINISHED;
-                GraphElem e0, e1;
-                g_->edge_range(lx, e0, e1);
+            // else // invalidate all neigboring vertices 
+            // {
+            //     status[lx] = STATUS_FINISHED;
+            //     GraphElem e0, e1;
+            //     g_->edge_range(lx, e0, e1);
 
-                for (GraphElem e = e0; e < e1; e++)
-                {
-                    EdgeActive& edge = g_->get_active_edge(e);
-                    const GraphElem z = edge.edge_.tail_;
+            //     for (GraphElem e = e0; e < e1; e++)
+            //     {
+            //         EdgeActive& edge = g_->get_active_edge(e);
+            //         const GraphElem z = edge.edge_.tail_;
 
-                    if (edge.active_)
-                    {
-                        // invalidate x -- z
-                        edge.active_ = false;
+            //         if (edge.active_)
+            //         {
+            //             // invalidate x -- z
+            //             edge.active_ = false;
                         
-                        const int z_owner = g_->get_owner(z);
+            //             const int z_owner = g_->get_owner(z);
                         
-                        if (z_owner == rank_)
-                            deactivate_edge(z, x);
-                        else // ghost, initiate INVALID
-                        {
-                            ghost_count_[lx] -= 1;
+            //             if (z_owner == rank_)
+            //                 deactivate_edge(z, x);
+            //             else // ghost, initiate INVALID
+            //             {
+            //                 ghost_count_[lx] -= 1;
                             
-                            GraphElem z_x[2] = {z, x};
-                            Put(MATE_INVALID, z_owner, z_x);  
-                        }
-                    }
-                }
-            }
+            //                 GraphElem z_x[2] = {z, x};
+            //                 Put(MATE_INVALID, z_owner, z_x);  
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         // process neighbors of matched vertices
